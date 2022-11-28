@@ -1,0 +1,7 @@
+{
+  "name": "sha256-pfv",
+  "version": "1.0.0",
+  "dependencies": {
+    "hasha": "^5.2.2"
+  }
+}

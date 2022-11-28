@@ -1,0 +1,203 @@
+const Sha256PfvHeader = require("./Sha256PfvHeader");
+const FileWrapper = require("./lib/FileWrapper");
+const CONSTANT = require("./lib/constant");
+const Sha256PfvUtility = require("./lib/Sha256PfvUtility");
+const hasha = require('hasha');
+const CONST = require("./lib/constant");
+const Sha256PfvException = require("./Sha256PfvException");
+
+class Sha256Pfv {
+	constructor() {
+		this.header = new Sha256PfvHeader();
+		this.hashes = [];
+		this.cache = null;
+		this.mode = Sha256Pfv.MODE_COMPLETE;
+	}
+
+	//检测是否有效
+	valid() {
+		this.header.valid();
+		if(this.mode === Sha256Pfv.MODE_COMPLETE) {
+			if (this.hashes.length !== this.header.getPartCount()) {
+				throw new Sha256PfvException("哈希数据与分块数量不匹配", Sha256PfvException.PART_HASH_INCOMPLETE);
+			}
+		}
+		else{
+			if(this.hashes.length !== 1){
+				throw new Sha256PfvException("精简哈希数据数量不正确", Sha256PfvException.PART_HASH_INCOMPLETE);
+			}
+			if(this.hashes[0].length < CONSTANT.COMPACT_HASH_MIN_LENGTH){
+				throw new Sha256PfvException("精简哈希长度太短", Sha256PfvException.PART_HASH_INCOMPLETE);
+			}
+		}
+		
+		return true;
+	}
+	
+	getMode(){
+		return this.mode;
+	}
+	
+	getHeader(){
+		return this.header;
+	}
+	
+	setHeader(header){
+		this.header = header;
+		this.cache = null;
+	}
+	
+	addHash(hash){
+		this.hashes.push(hash);
+		this.cache = null;
+	}
+	
+	setCompactHash(hash){
+		this.mode = Sha256Pfv.MODE_COMPACT;
+		this.hashes = [hash];
+		this.cache = null;
+	}
+
+	toString() {
+		try {
+			if (this.cache === null) this.calcCache();
+			return this.cache;
+		}
+		catch (e){
+			return '';
+		}
+	}
+	
+	calcCache(){
+		if (!this.valid()) this.cache = '';
+		else{
+			if(this.mode === Sha256Pfv.MODE_COMPLETE){
+				this.cache = this.header.toString() + this.hashes.join("");
+			}
+			else{
+				this.cache = CONSTANT.COMPACT_HEADER + this.header.toString() + this.hashes.join("");
+			}
+		} 
+	}
+
+	completeVerifyFile(filePath) {
+		this.valid();
+		
+		let fileWrapper = new FileWrapper(filePath);
+		let fileSize = fileWrapper.getSize();
+		
+		let partCount = this.header.getPartCount();
+		let partHashLength = this.header.getPartHashLength();
+		let fileBlockSize = Math.ceil(fileSize / partCount)
+		let hashes = [];
+		for (let i = 0; i < partCount; i++) {
+			let blockContent = fileWrapper.getFileContent(i * fileBlockSize, fileBlockSize);
+			hashes.push(hasha(blockContent, {algorithm:'sha256'}).substring(0, partHashLength));
+		}
+
+		let localHash = this.hashes.join("");
+		if(this.mode === Sha256Pfv.MODE_COMPLETE) {
+			return localHash === hashes.join("");
+		}
+		else{
+			return localHash === hasha(this.header.toString() + hashes.join(""), {algorithm:'sha256'}).substring(0, localHash.length)
+		}
+	}
+	
+	fastVerifyFile(filePath, verifyPartCount){
+		if (!verifyPartCount || this.header.getPartCount() <= verifyPartCount){
+			return this.completeVerifyFile(filePath);
+		}
+		
+		this.valid();
+		
+		if(this.mode === Sha256Pfv.MODE_COMPACT){
+			throw new Sha256PfvException("精简哈希不支持快速验证",Sha256PfvException.METHOD_NOT_SUPPORTED);
+		}
+
+		let partCount = this.header.getPartCount();
+		let partHashLength = this.header.getPartHashLength();
+		
+		let partIndexes = new Array(partCount).fill("").map((_,index)=>index);
+		let verifyPartIndexes = Sha256PfvUtility.shuffleArray(partIndexes).slice(0, verifyPartCount);
+
+		let fileWrapper = new FileWrapper(filePath);
+		let fileSize = fileWrapper.getSize();
+		let fileBlockSize = Math.ceil(fileSize / partCount);
+
+		for(let verifyPartIndex of verifyPartIndexes){
+			let blockContent = fileWrapper.getFileContent(verifyPartIndex * fileBlockSize, fileBlockSize);
+			if(hasha(blockContent, {algorithm:'sha256'}).substring(0, partHashLength) !== this.hashes[verifyPartIndex]){
+				return false;
+			}
+		}
+		
+		return true
+	}
+	
+	static fromFile(filePath,maxCompleteHashLength){
+		let fileWrapper = new FileWrapper(filePath);
+		let fileSize = fileWrapper.getSize();
+
+		let maxPart = Math.ceil(fileSize/ CONSTANT.FILE_BLOCK_SIZE);
+		maxPart = (maxPart & (maxPart - 1)) === 0 ? maxPart : 1 << (Sha256PfvUtility.calcDeBruijnBitPosition(maxPart)+1);
+		let maxAvailablePart = Sha256PfvUtility.floorToPowerOf2(((maxCompleteHashLength - 2)/8)>>>0);
+		let partCount = Math.min(maxPart, maxAvailablePart, CONSTANT.PART_MAX_COUNT);
+		let partHashLength = Math.min(Math.floor((maxCompleteHashLength - 2)/partCount), CONSTANT.PART_HASH_MAX_LENGTH);
+		let instance = new this();
+		instance.getHeader().setPartCount(partCount);
+		instance.getHeader().setPartHashLength(partHashLength);
+		
+		let fileBlockSize = Math.ceil(fileSize / partCount)
+		for(let i=0; i<partCount; i++){
+			let blockContent = fileWrapper.getFileContent(i*fileBlockSize, fileBlockSize);
+			instance.addHash(hasha(blockContent,{algorithm:'sha256'}).substring(0, partHashLength));
+		}
+		return instance;
+	}
+	
+	static fromHash(hash){
+		let instance = new this();
+		if(hash.substring(0,2) === '00'){//compact
+			let header = Sha256PfvHeader.fromString(hash.substring(2, 4));
+			header.valid();
+			instance.setHeader(header);
+			instance.setCompactHash(hash.substring(4));
+		}
+		else {//complete
+			let header = Sha256PfvHeader.fromString(hash.substring(0, 2));
+			header.valid();
+			instance.setHeader(header);
+
+			let partCount = header.getPartCount();
+			let partHashLength = header.getPartHashLength();
+			if (hash.length - 2 !== partCount * partHashLength) {
+				throw new Sha256PfvException("完整哈希位数不正确", Sha256PfvException.COMPLETE_HASH_INVALID);
+			}
+
+			for (let i = 0; i < partCount; i++) {
+				instance.addHash(hash.substring(2 + i * partHashLength, 2 + (i + 1) * partHashLength));
+			}
+		}
+
+		return instance;
+	}
+	
+	compact(toLength){
+		if(toLength < CONSTANT.COMPACT_HASH_MIN_LENGTH){
+			throw new Sha256PfvException("精简哈希长度太短",Sha256PfvException.PARAMS_INVALID);
+		}
+		
+		if(this.toString().length <= toLength){
+			return this.toString();
+		}
+		
+		this.setCompactHash(hasha(this.toString(), {algorithm:'sha256'}).substring(0, toLength - 4));
+		return this.toString();
+	}
+}
+
+Sha256Pfv.MODE_COMPLETE = 'complete';
+Sha256Pfv.MODE_COMPACT = 'compact';
+
+module.exports = Sha256Pfv
