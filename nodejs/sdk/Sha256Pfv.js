@@ -71,11 +71,9 @@ class Sha256Pfv {
 	calcCache(){
 		if (!this.valid()) this.cache = '';
 		else{
-			if(this.mode === Sha256Pfv.MODE_COMPLETE){
-				this.cache = this.header.toString() + this.hashes.join("");
-			}
-			else{
-				this.cache = CONSTANT.COMPACT_HEADER + this.header.toString() + this.hashes.join("");
+			this.cache = this.header.toString() + this.hashes.join("");
+			if(this.mode === Sha256Pfv.MODE_COMPACT){
+				this.cache = CONSTANT.COMPACT_HEADER + this.cache;
 			}
 		} 
 	}
@@ -158,7 +156,7 @@ class Sha256Pfv {
 	
 	static fromHash(hash){
 		let instance = new this();
-		if(hash.substring(0,2) === '00'){//compact
+		if(hash.substring(0,2) === CONSTANT.COMPACT_HEADER){//compact
 			let header = Sha256PfvHeader.fromString(hash.substring(2, 4));
 			header.valid();
 			instance.setHeader(header);
@@ -184,7 +182,7 @@ class Sha256Pfv {
 	}
 	
 	compact(toLength){
-		if(toLength < CONSTANT.COMPACT_HASH_MIN_LENGTH){
+		if(toLength < CONSTANT.COMPACT_HASH_MIN_LENGTH + 4){
 			throw new Sha256PfvException("精简哈希长度太短",Sha256PfvException.PARAMS_INVALID);
 		}
 		

@@ -81,11 +81,9 @@ public class Sha256Pfv {
     public void calcCache() throws Sha256PfvException {
         if (!this.valid()) this.cache = "";
         else{
-            if(this.mode.equals(Sha256Pfv.MODE_COMPLETE)){
-                this.cache = this.header.toString() + String.join("",this.hashes);
-            }
-            else{
-                this.cache = CONSTANT.COMPACT_HEADER + this.header.toString() +  String.join("",this.hashes);
+            this.cache = this.header.toString() + String.join("",this.hashes);
+            if(this.mode.equals(Sha256Pfv.MODE_COMPACT)){
+                this.cache = CONSTANT.COMPACT_HEADER + this.cache
             }
         }
     }
@@ -172,7 +170,7 @@ public class Sha256Pfv {
 
     public static Sha256Pfv fromHash(String hash) throws Sha256PfvException {
         Sha256Pfv instance = new Sha256Pfv();
-        if(hash.startsWith("00")){//compact
+        if(hash.startsWith(CONSTANT.COMPACT_HEADER)){//compact
             Sha256PfvHeader header = Sha256PfvHeader.fromString(hash.substring(2, 4));
             header.valid();
             instance.setHeader(header);
@@ -198,7 +196,7 @@ public class Sha256Pfv {
     }
 
     public String compact(int toLength) throws Sha256PfvException {
-        if(toLength < CONSTANT.COMPACT_HASH_MIN_LENGTH){
+        if(toLength < CONSTANT.COMPACT_HASH_MIN_LENGTH+4){
             throw new Sha256PfvException("精简哈希长度太短",Sha256PfvException.PARAMS_INVALID);
         }
 

@@ -1,0 +1,17 @@
+package lib
+
+var CONSTANT = struct {
+	FILE_BLOCK_SIZE         int64
+	PART_MAX_COUNT          int
+	PART_HASH_MIN_LENGTH    int
+	PART_HASH_MAX_LENGTH    int
+	COMPACT_HASH_MIN_LENGTH int
+	COMPACT_HEADER          string
+}{
+	FILE_BLOCK_SIZE:         4194304, // 4MB
+	PART_MAX_COUNT:          128,
+	PART_HASH_MIN_LENGTH:    8,
+	PART_HASH_MAX_LENGTH:    32,
+	COMPACT_HASH_MIN_LENGTH: 28,
+	COMPACT_HEADER:          "00",
+}
