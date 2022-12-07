@@ -7,9 +7,9 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public class Sha256PfvHeader {
-    protected int partCount;
-    protected int partHashLength;
-    protected String cache;
+    protected int partCount; // 分块数量
+    protected int partHashLength; //分块哈希长度
+    protected String cache; //生成字符串缓存
 
     Sha256PfvHeader(){
         this.partCount = 0;
@@ -39,6 +39,11 @@ public class Sha256PfvHeader {
         this.cache = null;
     }
 
+    /**
+     * @return true
+     * @throws Sha256PfvException 无效异常
+     * 检测格式是否有效
+     */
     boolean valid() throws Sha256PfvException {
         if(this.partCount <= 0 || this.partCount > CONSTANT.PART_MAX_COUNT){
             throw new Sha256PfvException("分块数量超出范围", Sha256PfvException.HEADER_PART_COUNT_INVALID);
@@ -52,11 +57,18 @@ public class Sha256PfvHeader {
         return true;
     }
 
-    void calcCache() throws Sha256PfvException {
+    /**
+     * @throws Sha256PfvException 验证格式中抛出的错误
+     * 计算字符串缓存
+     */
+    protected void calcCache() throws Sha256PfvException {
         if (!this.valid()) this.cache = "";
         else this.cache = String.format("%02x",(Sha256PfvUtility.calcDeBruijnBitPosition(this.partCount) << 5 | (this.partHashLength - 1)));
     }
 
+    /**
+     * @return 转化为字符串
+     */
     public String toString(){
         if(this.cache == null) {
             try {
@@ -68,6 +80,11 @@ public class Sha256PfvHeader {
         return this.cache;
     }
 
+    /**
+     * @param hexString 待解析的字符串
+     * @return 生成的Sha256PfvHeader实例
+     * @throws Sha256PfvException 输入参数错误
+     */
     public static Sha256PfvHeader fromString(String hexString) throws Sha256PfvException {
         Pattern pattern = Pattern.compile("^[0-9A-Fa-f]{2}$");
         Matcher matcher = pattern.matcher(hexString);

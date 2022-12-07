@@ -11,14 +11,17 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 public class Sha256Pfv {
-    public static final String MODE_COMPLETE = "complete";
-    public static final String MODE_COMPACT = "compact";
+    public static final String MODE_COMPLETE = "complete";//完整哈希模式
+    public static final String MODE_COMPACT = "compact";//精简哈希模式
 
     Sha256PfvHeader header;
     ArrayList<String> hashes;
     String cache;
     String mode;
 
+    /**
+     * 普通构造方法, 一般为内部使用
+     */
     Sha256Pfv(){
         this.header = new Sha256PfvHeader();
         this.hashes = new ArrayList<>();
@@ -26,11 +29,21 @@ public class Sha256Pfv {
         this.mode = Sha256Pfv.MODE_COMPLETE;
     }
 
+    /**
+     * @return true
+     * @throws Sha256PfvException 无效异常
+     * 检测格式是否有效
+     */
     public boolean valid() throws Sha256PfvException {
         this.header.valid();
         if(this.mode.equals(Sha256Pfv.MODE_COMPLETE)) {
             if (this.hashes.size() != this.header.getPartCount()) {
                 throw new Sha256PfvException("哈希数据与分块数量不匹配", Sha256PfvException.PART_HASH_INCOMPLETE);
+            }
+            for(String hash:this.hashes){
+                if(hash.length() != this.header.getPartHashLength()){
+                    throw new Sha256PfvException("哈希数据长度与分块哈希长度不匹配", Sha256PfvException.PART_HASH_INCOMPLETE);
+                }
             }
         }
         else{
@@ -45,29 +58,48 @@ public class Sha256Pfv {
         return true;
     }
 
+    /**
+     * @return 返回当前模式
+     */
     public String getMode() {
         return mode;
     }
 
+    /**
+     * @return 返回头部实例
+     */
     public Sha256PfvHeader getHeader() {
         return header;
     }
 
-    public void setHeader(Sha256PfvHeader header) {
+    /**
+     * @param header 替换头部实例
+     */
+    protected void setHeader(Sha256PfvHeader header) {
         this.header = header;
     }
 
-    public void addHash(String hash){
+    /**
+     * @param hash 要添加的分块哈希
+     */
+    protected void addHash(String hash){
         hashes.add(hash);
     }
 
-    public void setCompactHash(String hash){
+    /**
+     * @param hash 精简哈希内容
+     * 设置为精简哈希
+     */
+    protected void setCompactHash(String hash){
         this.mode = Sha256Pfv.MODE_COMPACT;
         this.hashes = new ArrayList<>();
         addHash(hash);
         this.cache = null;
     }
 
+    /**
+     * @return 转化为字符串
+     */
     public String toString() {
         try {
             if (this.cache == null) this.calcCache();
@@ -78,16 +110,25 @@ public class Sha256Pfv {
         }
     }
 
-    public void calcCache() throws Sha256PfvException {
+    /**
+     * @throws Sha256PfvException 验证格式中抛出的错误
+     * 计算字符串缓存
+     */
+    protected void calcCache() throws Sha256PfvException {
         if (!this.valid()) this.cache = "";
         else{
             this.cache = this.header.toString() + String.join("",this.hashes);
             if(this.mode.equals(Sha256Pfv.MODE_COMPACT)){
-                this.cache = CONSTANT.COMPACT_HEADER + this.cache
+                this.cache = CONSTANT.COMPACT_HEADER + this.cache;
             }
         }
     }
 
+    /**
+     * @param filePath 待校验的文件路径
+     * @return 是否验证通过
+     * @throws Sha256PfvException 验证格式中抛出的错误
+     */
     public boolean completeVerifyFile(String filePath) throws Sha256PfvException {
         this.valid();
 
@@ -113,6 +154,12 @@ public class Sha256Pfv {
         }
     }
 
+    /**
+     * @param filePath 待校验的文件路径
+     * @param verifyPartCount 需要验算的分块数
+     * @return 是否验证通过
+     * @throws Sha256PfvException 验证格式中抛出的错误
+     */
     public boolean fastVerifyFile(String filePath, int verifyPartCount) throws Sha256PfvException {
         if (this.header.getPartCount() <= verifyPartCount){
             return this.completeVerifyFile(filePath);
@@ -146,6 +193,12 @@ public class Sha256Pfv {
 
     }
 
+    /**
+     * @param filePath 待生成哈希的文件路径
+     * @param maxCompleteHashLength 最大完整哈希长度
+     * @return 生成的Sha256Pfv实例
+     * @throws Sha256PfvException 文件操作中出现的错误
+     */
     public static Sha256Pfv fromFile(String filePath,int maxCompleteHashLength) throws Sha256PfvException {
         FileWrapper fileWrapper = new FileWrapper(filePath);
         long fileSize = fileWrapper.getSize();
@@ -168,7 +221,12 @@ public class Sha256Pfv {
         return instance;
     }
 
-    public static Sha256Pfv fromHash(String hash) throws Sha256PfvException {
+    /**
+     * @param hash 待解析的完整哈希或者精简哈希
+     * @return 生成的Sha256Pfv实例
+     * @throws Sha256PfvException 输入参数错误
+     */
+    public static Sha256Pfv fromString(String hash) throws Sha256PfvException {
         Sha256Pfv instance = new Sha256Pfv();
         if(hash.startsWith(CONSTANT.COMPACT_HEADER)){//compact
             Sha256PfvHeader header = Sha256PfvHeader.fromString(hash.substring(2, 4));
@@ -195,6 +253,11 @@ public class Sha256Pfv {
         return instance;
     }
 
+    /**
+     * @param toLength 要压缩到的长度
+     * @return 精简过的哈希字符串, 同时会修改原来的Sha256Pfv实例
+     * @throws Sha256PfvException 参数错误
+     */
     public String compact(int toLength) throws Sha256PfvException {
         if(toLength < CONSTANT.COMPACT_HASH_MIN_LENGTH+4){
             throw new Sha256PfvException("精简哈希长度太短",Sha256PfvException.PARAMS_INVALID);

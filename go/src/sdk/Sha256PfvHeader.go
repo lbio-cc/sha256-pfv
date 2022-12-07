@@ -38,6 +38,7 @@ func Sha256PfvHeaderFromString(hexString string) (Sha256PfvHeader, error) {
 	}, nil
 }
 
+// ToString 转化为字符串
 func (header *Sha256PfvHeader) ToString() string {
 	if header.cache == "" {
 		header.calcCache()
@@ -46,6 +47,7 @@ func (header *Sha256PfvHeader) ToString() string {
 	return header.cache
 }
 
+// Valid 检测是否有效
 func (header *Sha256PfvHeader) Valid() (bool, error) {
 	if header.PartCount <= 0 || header.PartCount > lib.CONSTANT.PART_MAX_COUNT {
 		return false, NewSha256PfvError("分块数量超出范围", Sha256PfvError_HEADER_PART_COUNT_INVALID)
@@ -59,6 +61,7 @@ func (header *Sha256PfvHeader) Valid() (bool, error) {
 	return true, nil
 }
 
+// 计算缓存
 func (header *Sha256PfvHeader) calcCache() {
 	if ok, _ := header.Valid(); ok {
 		header.cache = fmt.Sprintf("%02x", lib.CalcDeBruijnBitPosition(int32(header.PartCount))<<5|(header.PartHashLength-1))

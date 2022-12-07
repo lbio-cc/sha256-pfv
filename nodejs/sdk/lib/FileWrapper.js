@@ -1,3 +1,8 @@
+/**
+ * @file Sha256Pfv 文件处理适配器
+ * @author hkuclion@gmail.com
+ */
+
 const fs = require("fs");
 const Sha256PfvException = require("../Sha256PfvException");
 
@@ -19,7 +24,12 @@ class FileWrapper{
 	
 	getFileContent(offset, length){
 		let buffer= new Uint8Array(length);
-		fs.readSync(this.file, buffer, 0, length, offset);
+		try {
+			fs.readSync(this.file, buffer, 0, length, offset);
+		}
+		catch (e){
+			throw new Sha256PfvException("读文件错误", Sha256PfvException.FILE_IO_ERROR)
+		}
 		return buffer;
 	}
 }

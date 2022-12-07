@@ -19,11 +19,19 @@ public class Sha256PfvUtility {
     protected final static int[] MultiplyDeBruijnBitPosition2 = {0, 1, 28, 2, 29, 14, 24, 3, 30, 22, 20, 15, 25, 17, 4, 8, 31, 27, 13, 23, 21, 19, 16, 7, 26, 12, 18, 6, 11, 5, 10, 9};
 
 
+    /**
+     * @param input 待计算的数字
+     * @return 使用DeBruijn计算1在32bit中的哪一位
+     */
     public static int calcDeBruijnBitPosition(int input){
         input = floorToPowerOf2(input);
         return MultiplyDeBruijnBitPosition2[((input * 0b00000111011111001011010100110001) >>> 27)&0b11111];
     }
 
+    /**
+     * @param input 待计算的数字
+     * @return 向下取整到2的n次方
+     */
     public static int floorToPowerOf2(int input){
         input |= (input >> 1);
         input |= (input >> 2);
@@ -33,6 +41,10 @@ public class Sha256PfvUtility {
         return input - (input >>> 1);
     }
 
+    /**
+     * @param hash byte数组
+     * @return hex字符串
+     */
     public static String bytesToHex(byte[] hash) {
         StringBuilder hexString = new StringBuilder(2 * hash.length);
         for (byte b : hash) {
@@ -45,6 +57,10 @@ public class Sha256PfvUtility {
         return hexString.toString();
     }
 
+    /**
+     * @param content 待计算的byte数组
+     * @return 生成的sha256哈希字符串
+     */
     public static String sha256Hash(byte[] content){
         return bytesToHex(sha256Digest.digest(content));
     }

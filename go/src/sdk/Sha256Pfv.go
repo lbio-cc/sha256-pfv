@@ -20,16 +20,20 @@ type Sha256Pfv struct {
 type Sha256PfvMode string
 
 const (
-	Sha256PfvMode_Complete Sha256PfvMode = "complete"
-	Sha256PfvMode_Compact  Sha256PfvMode = "compact"
+	Sha256PfvMode_Complete Sha256PfvMode = "complete" //完整哈希模式
+	Sha256PfvMode_Compact  Sha256PfvMode = "compact"  //精简哈希模式
 )
 
+// Sha256PfvFromFile 从文件生成Sha256PFV maxCompleteHashLength:最大哈希长度
 func Sha256PfvFromFile(filePath string, maxCompleteHashLength int) (Sha256Pfv, error) {
 	instance := Sha256Pfv{
 		mode: Sha256PfvMode_Complete,
 	}
 
-	fileWrapper := lib.NewFileWrapper(filePath)
+	fileWrapper, err := lib.NewFileWrapper(filePath)
+	if err != nil {
+		return instance, err
+	}
 	fileSize := fileWrapper.Size()
 
 	maxPart := int32(math.Ceil(float64(fileSize) / float64(lib.CONSTANT.FILE_BLOCK_SIZE)))
@@ -43,13 +47,17 @@ func Sha256PfvFromFile(filePath string, maxCompleteHashLength int) (Sha256Pfv, e
 
 	fileBlockSize := int64(math.Ceil(float64(fileSize) / float64(partCount)))
 	for i := 0; i < partCount; i++ {
-		blockContent := fileWrapper.FileContent(int64(i)*fileBlockSize, fileBlockSize)
+		blockContent, err := fileWrapper.FileContent(int64(i)*fileBlockSize, fileBlockSize)
+		if err != nil {
+			return instance, err
+		}
 		instance.addHash(fmt.Sprintf("%x", sha256.Sum256(blockContent))[0:partHashLength])
 	}
 
 	return instance, nil
 }
 
+// Sha256PfvFromString 从字符串解析Sha256PFV
 func Sha256PfvFromString(hash string) (Sha256Pfv, error) {
 	instance := Sha256Pfv{
 		mode: Sha256PfvMode_Complete,
@@ -92,6 +100,7 @@ func Sha256PfvFromString(hash string) (Sha256Pfv, error) {
 	return instance, nil
 }
 
+// Valid 检测格式是否有效
 func (pfv *Sha256Pfv) Valid() (bool, error) {
 	if _, err := pfv.header.Valid(); err != nil {
 		return false, err
@@ -100,6 +109,11 @@ func (pfv *Sha256Pfv) Valid() (bool, error) {
 	if pfv.mode == Sha256PfvMode_Complete {
 		if len(pfv.hashes) != pfv.header.PartCount {
 			return false, NewSha256PfvError("哈希数据与分块数量不匹配", Sha256PfvError_PART_HASH_INCOMPLETE)
+		}
+		for _, hash := range pfv.hashes {
+			if len(hash) != pfv.header.PartHashLength {
+				return false, NewSha256PfvError("哈希数据长度与分块哈希长度不匹配", Sha256PfvError_PART_HASH_INCOMPLETE)
+			}
 		}
 	} else {
 		if len(pfv.hashes) != 1 {
@@ -117,16 +131,19 @@ func (pfv *Sha256Pfv) Mode() Sha256PfvMode {
 	return pfv.mode
 }
 
+// 添加分块哈希
 func (pfv *Sha256Pfv) addHash(hash string) {
 	pfv.hashes = append(pfv.hashes, hash)
 }
 
+// 设置为精简哈希
 func (pfv *Sha256Pfv) setCompactHash(hash string) {
 	pfv.mode = Sha256PfvMode_Compact
 	pfv.hashes = []string{hash}
 	pfv.cache = ""
 }
 
+// ToString 转化为字符串
 func (pfv *Sha256Pfv) ToString() string {
 	if pfv.cache == "" {
 		pfv.calcCache()
@@ -135,6 +152,7 @@ func (pfv *Sha256Pfv) ToString() string {
 	return pfv.cache
 }
 
+// 计算缓存
 func (pfv *Sha256Pfv) calcCache() {
 	if ok, _ := pfv.Valid(); ok {
 		pfv.cache = pfv.header.ToString() + strings.Join(pfv.hashes, "")
@@ -146,12 +164,16 @@ func (pfv *Sha256Pfv) calcCache() {
 	}
 }
 
+// CompleteVerifyFile 完整验算文件
 func (pfv *Sha256Pfv) CompleteVerifyFile(filePath string) (bool, error) {
 	if _, err := pfv.Valid(); err != nil {
 		return false, err
 	}
 
-	fileWrapper := lib.NewFileWrapper(filePath)
+	fileWrapper, err := lib.NewFileWrapper(filePath)
+	if err != nil {
+		return false, err
+	}
 	fileSize := fileWrapper.Size()
 
 	partCount := pfv.header.PartCount
@@ -161,7 +183,10 @@ func (pfv *Sha256Pfv) CompleteVerifyFile(filePath string) (bool, error) {
 
 	fileBlockSize := int64(math.Ceil(float64(fileSize) / float64(partCount)))
 	for i := 0; i < partCount; i++ {
-		blockContent := fileWrapper.FileContent(int64(i)*fileBlockSize, fileBlockSize)
+		blockContent, err := fileWrapper.FileContent(int64(i)*fileBlockSize, fileBlockSize)
+		if err != nil {
+			return false, err
+		}
 		hashes = append(hashes, fmt.Sprintf("%x", sha256.Sum256(blockContent))[0:partHashLength])
 	}
 
@@ -173,6 +198,7 @@ func (pfv *Sha256Pfv) CompleteVerifyFile(filePath string) (bool, error) {
 	}
 }
 
+// FastVerifyFile 快速验算文件 verifyPartCount:需要验算的分块数
 func (pfv *Sha256Pfv) FastVerifyFile(filePath string, verifyPartCount int) (bool, error) {
 	if pfv.header.PartCount <= verifyPartCount {
 		return pfv.CompleteVerifyFile(filePath)
@@ -186,7 +212,10 @@ func (pfv *Sha256Pfv) FastVerifyFile(filePath string, verifyPartCount int) (bool
 		return false, err
 	}
 
-	fileWrapper := lib.NewFileWrapper(filePath)
+	fileWrapper, err := lib.NewFileWrapper(filePath)
+	if err != nil {
+		return false, err
+	}
 	fileSize := fileWrapper.Size()
 
 	partCount := pfv.header.PartCount
@@ -205,7 +234,10 @@ func (pfv *Sha256Pfv) FastVerifyFile(filePath string, verifyPartCount int) (bool
 			break
 		}
 
-		blockContent := fileWrapper.FileContent(int64(verifyPartIndex)*fileBlockSize, fileBlockSize)
+		blockContent, err := fileWrapper.FileContent(int64(verifyPartIndex)*fileBlockSize, fileBlockSize)
+		if err != nil {
+			return false, err
+		}
 		if fmt.Sprintf("%x", sha256.Sum256(blockContent))[0:partHashLength] != pfv.hashes[verifyPartIndex] {
 			return false, nil
 		}
@@ -214,6 +246,7 @@ func (pfv *Sha256Pfv) FastVerifyFile(filePath string, verifyPartCount int) (bool
 	return true, nil
 }
 
+// Compact 生成精简哈希
 func (pfv *Sha256Pfv) Compact(toLength int) (string, error) {
 	if toLength < lib.CONSTANT.COMPACT_HASH_MIN_LENGTH+4 {
 		return "", NewSha256PfvError("精简哈希长度太短", Sha256PfvError_PARAMS_INVALID)

@@ -11,7 +11,7 @@ public class FileWrapper {
     public FileWrapper(String path) throws Sha256PfvException {
         file = new File(path);
         if(!file.exists()){
-            throw new Sha256PfvException("未找到文件", Sha256PfvException.FILE_INVALID);
+            throw new Sha256PfvException("未找到文件", Sha256PfvException.FILE_NOT_FOUND);
         }
         if(!file.isFile()){
             throw new Sha256PfvException("文件路径为目录", Sha256PfvException.FILE_INVALID);
@@ -20,7 +20,7 @@ public class FileWrapper {
             randomAccessFile = new RandomAccessFile(file,"r");
         }
         catch (FileNotFoundException e){
-            throw new Sha256PfvException("未找到文件", Sha256PfvException.FILE_INVALID);
+            throw new Sha256PfvException("未找到文件", Sha256PfvException.FILE_NOT_FOUND);
         }
     }
 

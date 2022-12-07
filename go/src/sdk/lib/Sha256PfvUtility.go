@@ -8,6 +8,7 @@ func CalcDeBruijnBitPosition(input int32) int {
 	return MultiplyDeBruijnBitPosition2[((input*0b00000111011111001011010100110001)>>27)&0b11111]
 }
 
+// 向下取整到2的n次方
 func FloorToPowerOf2(input int32) int32 {
 	input |= input >> 1
 	input |= input >> 2

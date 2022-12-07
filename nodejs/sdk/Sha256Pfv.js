@@ -1,12 +1,17 @@
+/**
+ * @file Sha256Pfv 主类
+ * @author hkuclion@gmail.com
+ */
+
 const Sha256PfvHeader = require("./Sha256PfvHeader");
 const FileWrapper = require("./lib/FileWrapper");
 const CONSTANT = require("./lib/constant");
 const Sha256PfvUtility = require("./lib/Sha256PfvUtility");
 const hasha = require('hasha');
-const CONST = require("./lib/constant");
 const Sha256PfvException = require("./Sha256PfvException");
 
 class Sha256Pfv {
+	//普通构造方法, 一般为内部使用
 	constructor() {
 		this.header = new Sha256PfvHeader();
 		this.hashes = [];
@@ -14,19 +19,24 @@ class Sha256Pfv {
 		this.mode = Sha256Pfv.MODE_COMPLETE;
 	}
 
-	//检测是否有效
+	//检测格式是否有效
 	valid() {
 		this.header.valid();
-		if(this.mode === Sha256Pfv.MODE_COMPLETE) {
-			if (this.hashes.length !== this.header.getPartCount()) {
+		if(this.mode === Sha256Pfv.MODE_COMPLETE) {//完整哈希
+			if (this.hashes.length !== this.header.getPartCount()) {//检查分块哈希数量
 				throw new Sha256PfvException("哈希数据与分块数量不匹配", Sha256PfvException.PART_HASH_INCOMPLETE);
 			}
+			for(let hash of this.hashes){//检查分块哈希长度
+				if(hash.length !== this.header.getPartHashLength()){
+					throw new Sha256PfvException("哈希数据长度与分块哈希长度不匹配", Sha256PfvException.PART_HASH_INCOMPLETE);
+				}
+			}
 		}
-		else{
-			if(this.hashes.length !== 1){
+		else{//精简哈希
+			if(this.hashes.length !== 1){//检查分块哈希数量
 				throw new Sha256PfvException("精简哈希数据数量不正确", Sha256PfvException.PART_HASH_INCOMPLETE);
 			}
-			if(this.hashes[0].length < CONSTANT.COMPACT_HASH_MIN_LENGTH){
+			if(this.hashes[0].length < CONSTANT.COMPACT_HASH_MIN_LENGTH){//检查分块哈希长度
 				throw new Sha256PfvException("精简哈希长度太短", Sha256PfvException.PART_HASH_INCOMPLETE);
 			}
 		}
@@ -34,33 +44,39 @@ class Sha256Pfv {
 		return true;
 	}
 	
+	//获取当前模式
 	getMode(){
 		return this.mode;
 	}
 	
+	//获取header
 	getHeader(){
 		return this.header;
 	}
 	
-	setHeader(header){
+	//设置header
+	_setHeader(header){
 		this.header = header;
 		this.cache = null;
 	}
 	
-	addHash(hash){
+	//添加分块哈希
+	_addHash(hash){
 		this.hashes.push(hash);
 		this.cache = null;
 	}
 	
-	setCompactHash(hash){
+	//设置为精简哈希
+	_setCompactHash(hash){
 		this.mode = Sha256Pfv.MODE_COMPACT;
 		this.hashes = [hash];
 		this.cache = null;
 	}
 
+	//转化为字符串
 	toString() {
 		try {
-			if (this.cache === null) this.calcCache();
+			if (this.cache === null) this._calcCache();
 			return this.cache;
 		}
 		catch (e){
@@ -68,7 +84,8 @@ class Sha256Pfv {
 		}
 	}
 	
-	calcCache(){
+	//计算缓存
+	_calcCache(){
 		if (!this.valid()) this.cache = '';
 		else{
 			this.cache = this.header.toString() + this.hashes.join("");
@@ -78,6 +95,7 @@ class Sha256Pfv {
 		} 
 	}
 
+	//完整验算文件
 	completeVerifyFile(filePath) {
 		this.valid();
 		
@@ -102,6 +120,7 @@ class Sha256Pfv {
 		}
 	}
 	
+	//快速验算文件 verifyPartCount:需要验算的分块数
 	fastVerifyFile(filePath, verifyPartCount){
 		if (!verifyPartCount || this.header.getPartCount() <= verifyPartCount){
 			return this.completeVerifyFile(filePath);
@@ -133,6 +152,7 @@ class Sha256Pfv {
 		return true
 	}
 	
+	//从文件生成Sha256PFV maxCompleteHashLength:最大哈希长度
 	static fromFile(filePath,maxCompleteHashLength){
 		let fileWrapper = new FileWrapper(filePath);
 		let fileSize = fileWrapper.getSize();
@@ -149,23 +169,24 @@ class Sha256Pfv {
 		let fileBlockSize = Math.ceil(fileSize / partCount)
 		for(let i=0; i<partCount; i++){
 			let blockContent = fileWrapper.getFileContent(i*fileBlockSize, fileBlockSize);
-			instance.addHash(hasha(blockContent,{algorithm:'sha256'}).substring(0, partHashLength));
+			instance._addHash(hasha(blockContent,{algorithm:'sha256'}).substring(0, partHashLength));
 		}
 		return instance;
 	}
 	
-	static fromHash(hash){
+	//从字符串解析Sha256PFV
+	static fromString(hash){
 		let instance = new this();
 		if(hash.substring(0,2) === CONSTANT.COMPACT_HEADER){//compact
 			let header = Sha256PfvHeader.fromString(hash.substring(2, 4));
 			header.valid();
-			instance.setHeader(header);
-			instance.setCompactHash(hash.substring(4));
+			instance._setHeader(header);
+			instance._setCompactHash(hash.substring(4));
 		}
 		else {//complete
 			let header = Sha256PfvHeader.fromString(hash.substring(0, 2));
 			header.valid();
-			instance.setHeader(header);
+			instance._setHeader(header);
 
 			let partCount = header.getPartCount();
 			let partHashLength = header.getPartHashLength();
@@ -174,13 +195,14 @@ class Sha256Pfv {
 			}
 
 			for (let i = 0; i < partCount; i++) {
-				instance.addHash(hash.substring(2 + i * partHashLength, 2 + (i + 1) * partHashLength));
+				instance._addHash(hash.substring(2 + i * partHashLength, 2 + (i + 1) * partHashLength));
 			}
 		}
 
 		return instance;
 	}
 	
+	//生成精简哈希
 	compact(toLength){
 		if(toLength < CONSTANT.COMPACT_HASH_MIN_LENGTH + 4){
 			throw new Sha256PfvException("精简哈希长度太短",Sha256PfvException.PARAMS_INVALID);
@@ -190,12 +212,12 @@ class Sha256Pfv {
 			return this.toString();
 		}
 		
-		this.setCompactHash(hasha(this.toString(), {algorithm:'sha256'}).substring(0, toLength - 4));
+		this._setCompactHash(hasha(this.toString(), {algorithm:'sha256'}).substring(0, toLength - 4));
 		return this.toString();
 	}
 }
 
-Sha256Pfv.MODE_COMPLETE = 'complete';
-Sha256Pfv.MODE_COMPACT = 'compact';
+Sha256Pfv.MODE_COMPLETE = 'complete';//完整哈希模式
+Sha256Pfv.MODE_COMPACT = 'compact';//精简哈希模式
 
 module.exports = Sha256Pfv

@@ -5,9 +5,9 @@ const Sha256PfvException = require('./Sha256PfvException');
 //Pfv哈希头部
 class Sha256PfvHeader {
 	constructor(partCount, partHashLength) {
-		this.partCount = 0;
-		this.partHashLength = 0;
-		this.cache = null;
+		this.partCount = 0; //分块数量
+		this.partHashLength = 0; //分块哈希长度
+		this.cache = null; //生成字符串缓存
 		if(partCount) {
 			this.setPartCount(partCount);
 		}
@@ -29,10 +29,11 @@ class Sha256PfvHeader {
 		}
 		return true;
 	}
-	
+
+	//转化为字符串
 	toString(){
 		try {
-			if (this.cache === null) this.calcCache();
+			if (this.cache === null) this._calcCache();
 			return this.cache;
 		}
 		catch (e){
@@ -40,26 +41,32 @@ class Sha256PfvHeader {
 		}
 	}
 	
+	//获取分块数
 	getPartCount(){
 		return this.partCount;
 	}
+	//设置分块数
 	setPartCount(partCount){
 		this.partCount = partCount >>> 0;
 		this.cache = null
 	}
+	//获取分块哈希长度
 	getPartHashLength(){
 		return this.partHashLength;
 	}
+	//设置分块哈希长度
 	setPartHashLength(partHashLength){
 		this.partHashLength = partHashLength >>> 0;
 		this.cache = null
 	}
 	
-	calcCache(){
+	//计算缓存
+	_calcCache(){
 		if (!this.valid()) this.cache = '';
 		else this.cache = (Sha256PfvUtility.calcDeBruijnBitPosition(this.partCount) << 5 | (this.partHashLength - 1)).toString(16).padStart(2, '0');
 	}
 	
+	//从字符串生成Sha256PfvHeader
 	static fromString(hexString){
 		if(!hexString.match(/^[0-9A-Fa-f]{2}$/)){
 			throw new Sha256PfvException("数据不正确", Sha256PfvException.PARAMS_INVALID);
