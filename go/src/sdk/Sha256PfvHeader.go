@@ -56,8 +56,11 @@ func (header *Sha256PfvHeader) Valid() (bool, error) {
 		return false, NewSha256PfvError("分块数量不是2^n", Sha256PfvError_HEADER_PART_COUNT_INVALID)
 	}
 	if header.PartHashLength < lib.CONSTANT.PART_HASH_MIN_LENGTH || header.PartHashLength > lib.CONSTANT.PART_HASH_MAX_LENGTH {
-		return false, NewSha256PfvError("分块哈希长度超出范围", Sha256PfvError_HEADER_PART_HASH_LENGTH_INVALID)
+		return false, NewSha256PfvError("分块哈希长度太大或太小", Sha256PfvError_HEADER_PART_HASH_LENGTH_INVALID)
 	}
+	if header.PartHashLength * header.PartCount < lib.CONSTANT.COMPLETE_HASH_MIN_LENGTH {
+        return false, NewSha256PfvError("完整哈希长度太短", Sha256PfvError_HEADER_PART_HASH_LENGTH_INVALID)
+    }
 	return true, nil
 }
 
