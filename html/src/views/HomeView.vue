@@ -1,5 +1,7 @@
 <template>
 	<div class="home">
+		<h1>Sha256Pfv 工具</h1>
+		
 		<div class="mode-selector">
 			<a-radio-group v-model:value="mode" button-style="solid">
 				<a-radio-button :value="Mode.VERIFY">验证哈希</a-radio-button>
@@ -51,7 +53,11 @@ const localUploadFile = function (request: UploadRequestOption):void{
 
 <style lang="scss" scoped>
 	.home{
-		
+		h1{
+			text-align: center;
+			font-size: 24px;
+			padding: 1em;
+		}
 	}
 
 	.mode-selector{

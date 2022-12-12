@@ -31,7 +31,7 @@
 	}
 	
 	const formState = reactive({
-		hash: '4e50b8833fcaa4556b11cb4f4ff3e8bb410b2ad93d7e72ad56da99a25fb2c1',
+		hash: '',
 	} as VerifyFormData);
 	
 	const verifyResult = ref(undefined as undefined|boolean);

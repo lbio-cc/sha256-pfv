@@ -25,7 +25,10 @@ class Sha256PfvHeader {
 			throw new Sha256PfvException("分块数量不是2^n", Sha256PfvException.HEADER_PART_COUNT_INVALID);
 		}
 		if (this.partHashLength < CONSTANT.PART_HASH_MIN_LENGTH || this.partHashLength > CONSTANT.PART_HASH_MAX_LENGTH) {
-			throw new Sha256PfvException("分块哈希长度超出范围", Sha256PfvException.HEADER_PART_HASH_LENGTH_INVALID);
+			throw new Sha256PfvException("分块哈希长度太大或太小", Sha256PfvException.HEADER_PART_HASH_LENGTH_INVALID);
+		}
+		if (this.partHashLength * this.partCount < CONSTANT.COMPLETE_HASH_MIN_LENGTH) {
+			throw new Sha256PfvException("完整哈希长度太短", Sha256PfvException.HEADER_PART_HASH_LENGTH_INVALID);
 		}
 		return true;
 	}
